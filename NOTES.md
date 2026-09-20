@@ -227,11 +227,21 @@ toast that vanishes.
    would catch a whole section going missing.
 4. **Determinism check**: parsing the same bytes twice yields identical output.
    This is what makes the ordering fix meaningful rather than incidental.
-5. **Copy independence** verified by hand in the running app — duplicate, edit
-   the copy, confirm the original is unchanged — and structurally guaranteed by
-   `copy_template()` doing a full deep copy in one statement, so a copy can
-   never be half-made or share rows.
-6. **Persistence** verified by restarting the dev server and reloading.
+5. **Round-tripped the whole template through Postgres.** I loaded all 392
+   parsed comments into a local Postgres 16 running this exact schema, read
+   them back with `ORDER BY s.position, i.position, c.position`, and diffed the
+   result against the parser's own output. Identical, 392/392 — so the ordering
+   guarantee survives the database and is not just true in memory. Counts in
+   the database matched too: 13 sections, 69 items, 392 comments, 42 with
+   links.
+6. **Exercised `copy_template()` against real data, twice.** On a small fixture
+   with deliberate order ties, and then on the full 392-comment template. The
+   copy reproduced the ordering exactly; renaming every comment in the copy
+   changed 392 rows in the copy and **0 in the original**; deleting the copy
+   left the original intact. Copy independence is structural — the function
+   deep-copies in a single statement, so a copy can never be half-made or share
+   rows — but I wanted it demonstrated rather than assumed.
+7. **Persistence** verified by restarting the dev server and reloading.
 
 ---
 
