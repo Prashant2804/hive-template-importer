@@ -6,16 +6,45 @@
  * parser and persistence path as the upload form — there is no separate
  * "seed" code path that could drift from the real one.
  *
- *   npx tsx scripts/seed.ts
+ *   npm run seed
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { parseSpectoraExport } from "../lib/spectora/parse";
 import { saveImport } from "../lib/repo";
 import { ImportError } from "../lib/spectora/types";
 
 const DEFAULT_FIXTURE = "fixtures/InterNACHI Residential -2026-09-20.xls";
+
+/**
+ * Load .env.local into process.env.
+ *
+ * Next.js does this automatically for `next dev` and `next build`, but a plain
+ * tsx script does not -- so without this the script sees no credentials even
+ * though the file is sitting right there, which is a confusing way to fail.
+ * Existing environment variables win, so CI and one-off overrides still work.
+ */
+function loadEnvFile(path = ".env.local"): void {
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
+loadEnvFile();
 
 async function main() {
   const path = process.argv[2] ?? DEFAULT_FIXTURE;
@@ -26,8 +55,8 @@ async function main() {
   ) {
     console.error(
       "Missing Supabase credentials.\n" +
-        "Run with them in the environment, e.g.:\n" +
-        "  set -a && source .env.local && set +a && npx tsx scripts/seed.ts",
+        "Create .env.local with NEXT_PUBLIC_SUPABASE_URL and " +
+        "SUPABASE_SERVICE_ROLE_KEY (see .env.example), then re-run `npm run seed`.",
     );
     process.exit(1);
   }

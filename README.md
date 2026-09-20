@@ -86,12 +86,12 @@ anon key cannot read or write these tables even if it leaked.
 ### 4. Seed a template (optional)
 
 ```bash
-set -a && source .env.local && set +a
 npm run seed
 ```
 
-This runs the committed export through the same parser and persistence path as
-the upload form. You can also just upload the file through the UI.
+The script reads `.env.local` itself, so no shell sourcing is needed. It runs
+the committed export through the same parser and persistence path as the
+upload form. You can also just upload the file through the UI.
 
 ### 5. Run
 
