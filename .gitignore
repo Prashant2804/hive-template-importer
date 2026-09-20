@@ -10,3 +10,5 @@ build/
 next-env.d.ts
 probe.ts
 VIDEO-SCRIPT.md
+.vercel
+.env*
