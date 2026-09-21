@@ -8,9 +8,8 @@ work with it, and keep their changes.
 
 No login. The app opens on the InterNACHI Residential template already
 imported (13 sections, 69 items, 392 comments), so there is something to
-explore straight away. Start at the
-[import report](https://hive-template-importer-rouge.vercel.app) if you want to
-see what the importer preserved and what it changed.
+explore straight away. Each template has an **Import report** button showing
+exactly what the importer preserved, changed, and could not carry across.
 
 ---
 

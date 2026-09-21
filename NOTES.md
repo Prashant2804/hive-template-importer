@@ -192,6 +192,16 @@ than dropped in silence.
 - A 10 MB upload cap. Template exports are well under 1 MB.
 - Very large templates are imported in one request; there is no background job.
   Fine at this size, would need revisiting an order of magnitude up.
+- **Dependencies.** Upgraded to Next.js 15.5 during the build after `npm audit`
+  flagged critical advisories (including unauthenticated RCE) across the whole
+  14.x line. `xlsx` is pinned to SheetJS's own 0.20.3 build from their CDN,
+  because the npm package stopped receiving fixes at 0.18.5 and that version
+  carries prototype-pollution and ReDoS advisories — which matter here, since
+  the app parses uploaded files. `npm audit` still reports two findings with a
+  single root cause: the PostCSS copy bundled inside Next (flagged high, with
+  Next itself flagged moderate for bundling it). The fix only exists in Next 16.
+  It is reachable only when compiling attacker-supplied CSS, and this app only
+  ever compiles its own stylesheet at build time.
 
 ### Failure behaviour
 
@@ -211,7 +221,10 @@ toast that vanishes.
 
 ---
 
-## How I checked my work
+## How the work was checked
+
+Most of these checks were run by Claude during the build (see *Credit and AI
+tool use* below for the split); the production checks in item 7 are mine.
 
 1. **Profiled the real export before writing any parser code** — in Python,
    independently of the TypeScript — to get ground truth: 13 sections, 69
@@ -227,9 +240,9 @@ toast that vanishes.
    would catch a whole section going missing.
 4. **Determinism check**: parsing the same bytes twice yields identical output.
    This is what makes the ordering fix meaningful rather than incidental.
-5. **Round-tripped the whole template through Postgres.** I loaded all 392
-   parsed comments into a local Postgres 16 running this exact schema, read
-   them back with `ORDER BY s.position, i.position, c.position`, and diffed the
+5. **Round-tripped the whole template through Postgres.** All 392
+   parsed comments were loaded into a local Postgres 16 running this exact
+   schema, read back with `ORDER BY s.position, i.position, c.position`, and diffed the
    result against the parser's own output. Identical, 392/392 — so the ordering
    guarantee survives the database and is not just true in memory. Counts in
    the database matched too: 13 sections, 69 items, 392 comments, 42 with
@@ -240,22 +253,30 @@ toast that vanishes.
    changed 392 rows in the copy and **0 in the original**; deleting the copy
    left the original intact. Copy independence is structural — the function
    deep-copies in a single statement, so a copy can never be half-made or share
-   rows — but I wanted it demonstrated rather than assumed.
-7. **Persistence** verified by restarting the dev server and reloading.
+   rows — but it was worth demonstrating rather than assuming.
+7. **In production, by me.** Imported the committed export through the deployed
+   app on Vercel against the real Supabase database: 392/392 rows accounted
+   for, 0 skipped, 14 decisions reported. Checked the editor renders the full
+   tree, that the `http://` DIY links survived sanitisation, and that entity
+   decoding shows "Drain, Waste, & Vent Systems" correctly. Edit-and-reload and
+   copy independence are demonstrated in the walkthrough video.
 
 ---
 
 ## Time spent
 
-> **Prashant — fill this in honestly before submitting.** They ask for
-> approximate time, and a real number reads better than a round one.
+About **5 hours of my own hands-on time**, across the two days:
 
-- Product exploration (Spectora, Hive Inspect trial, export): _~Xh_
-- Profiling the export / understanding the format: _~Xh_
-- Parser + tests: _~Xh_
-- Schema + persistence: _~Xh_
-- UI (list, editor, report): _~Xh_
-- Deployment, README, NOTES, video: _~Xh_
+- Product exploration — the Spectora export and the Hive Inspect trial
+- Reviewing the design decisions and the code until I could explain and change
+  them
+- Supabase and Vercel setup, deployment, and the production checks
+- Recording the walkthrough
+
+The implementation and most of the verification ran in Claude sessions inside
+that window (see below). I'm stating it this way rather than as a per-phase
+breakdown, because "parser: 3 hours" would imply I typed the parser, and I
+didn't.
 
 ---
 
@@ -267,28 +288,35 @@ starter template beyond `create-next-app` conventions. The parser, schema,
 `copy_template()`, the coverage/issue model and the report UI are written for
 this assignment.
 
-**AI tools:** built with Claude (Claude Code), which the brief encourages.
-Concretely, how it was used:
+**AI tools:** built with Claude (via Claude Code / Cowork), which the brief
+encourages. The split, stated plainly:
 
-- **Format discovery first, code second.** Before any parser existed, I had it
-  profile the actual export — column fill rates, distinct enum values,
-  hierarchy counts, HTML tags and entities present. Every non-obvious finding
-  above (the XLSX-behind-`.xls`, the order collisions, the duplicate comment,
-  the 11 padded names) came out of that pass. Building against the real file
-  rather than the documented format is the single thing that most changed what
-  got built.
-- **Implementation** of the parser, schema and UI, with me directing the design
-  decisions: what the data model should be, that `source_row` had to be
-  load-bearing, that `empty_in_source` and `unsupported` must be separate
-  states, and what to cut.
-- **What I verified myself, and did not take on trust:** I cross-checked every
-  count the TypeScript parser reports against the independent Python profile of
-  the same file. I wrote/reviewed the ordering tests specifically to prove the
-  tie case is real in this fixture rather than hypothetical. I confirmed copy
-  independence by hand in the running app. And I caught a real bug during the
-  build — the first column spec let `Default Value` swallow
-  `Default Value 2 (for "range" types)` by prefix match, which would have
-  silently mis-mapped a column.
+**What Claude did**
+
+- **Profiled the real export before any parser existed** — column fill rates,
+  distinct enum values, hierarchy counts, HTML tags and entities. Every
+  non-obvious finding above (the XLSX-behind-`.xls`, the order collisions, the
+  duplicate comment, the padded names) came out of that pass. Building against
+  the real file rather than the documented format is what most changed the
+  result.
+- **Wrote the parser, schema, `copy_template()`, UI and tests.**
+- **Ran the verification in items 1–6 above**, including the Python
+  cross-check of counts and the Postgres round-trip, and caught its own bug
+  mid-build: the first column spec let `Default Value` swallow
+  `Default Value 2 (for "range" types)` by prefix match.
+
+**What I did**
+
+- Chose the stack (Next.js + Supabase) and the improvement to build (the import
+  trust report), and supplied the real Spectora export.
+- Reviewed the design decisions — `source_row` as the ordering tiebreaker,
+  `empty_in_source` vs `unsupported`, what to cut — and the code, well enough
+  to explain and change it.
+- Set up Supabase and Vercel, deployed, and ran the production checks in
+  item 7.
+
+I'm responsible for what's shipped, as the brief says. This section exists so
+you know which parts I executed and which I directed and verified.
 
 No model is used *inside* the product. The import is deterministic parsing, not
 inference — which for this customer is the right call: a template import that
