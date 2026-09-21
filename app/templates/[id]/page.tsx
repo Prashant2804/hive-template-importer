@@ -15,9 +15,11 @@ export const dynamic = "force-dynamic";
 export default async function TemplatePage({
   params,
 }: {
-  params: { id: string };
+  // Next 15: dynamic route params are async.
+  params: Promise<{ id: string }>;
 }) {
-  const template = await getTemplateTree(params.id);
+  const { id } = await params;
+  const template = await getTemplateTree(id);
   if (!template) notFound();
 
   const itemCount = template.sections.reduce((n, s) => n + s.items.length, 0);

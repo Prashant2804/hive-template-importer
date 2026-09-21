@@ -81,11 +81,13 @@ function Stat({
 export default async function ReportPage({
   params,
 }: {
-  params: { id: string };
+  // Next 15: dynamic route params are async.
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const [template, latest] = await Promise.all([
-    getTemplateTree(params.id),
-    getLatestRun(params.id),
+    getTemplateTree(id),
+    getLatestRun(id),
   ]);
   if (!template) notFound();
 

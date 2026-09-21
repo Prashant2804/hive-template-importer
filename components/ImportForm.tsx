@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { importTemplateAction, type ActionState } from "@/app/actions";
 
 const initial: ActionState = { ok: false };
@@ -19,7 +20,7 @@ function SubmitButton() {
 }
 
 export default function ImportForm() {
-  const [state, formAction] = useFormState(importTemplateAction, initial);
+  const [state, formAction] = useActionState(importTemplateAction, initial);
 
   return (
     <form
