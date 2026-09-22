@@ -4,7 +4,7 @@ Import an inspection template that a company has spent years tuning, let them
 work with it, and keep their changes.
 
 **Live app:** https://hive-template-importer-rouge.vercel.app
-**Walkthrough video:** _(add your unlisted YouTube link here)_
+**Walkthrough video:** https://www.youtube.com/watch?v=lgui_fm_d-A
 
 No login. The app opens on the InterNACHI Residential template already
 imported (13 sections, 69 items, 392 comments), so there is something to
